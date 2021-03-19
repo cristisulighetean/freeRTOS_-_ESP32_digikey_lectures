@@ -5,8 +5,8 @@
  * blinks an LED. When it gets a message from the 1st queue (number) , it updates
  * the blink delay to that number. Whenever the LED blinks 100 times, the 2nd task 
  * sends a message to the first task to be printed.
- */
-
+ 
+*/
 #include<Arduino.h>
 // Use only one core
 #if CONFIG_FREERTOS_UNICORE
@@ -151,7 +151,7 @@ void blinkLED(void *parameters){
     counter++;
     if(counter >= blink_max){
       // Construct message & send
-      strcpy(msg.body, "Blinked ");
+      strcpy(msg.body, "Blinked");
       msg.count = counter;
       xQueueSend(msg_queue, (void*)&msg, 10);
 

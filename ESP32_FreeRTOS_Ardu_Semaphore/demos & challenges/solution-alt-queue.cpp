@@ -41,6 +41,7 @@ void producer(void *parameters) {
   int num = *(int *)parameters;
 
   // Release the binary semaphore
+  // For parameter to be send
   xSemaphoreGive(bin_sem);
 
   // Fill queue with task number (wait max time if queue is full)

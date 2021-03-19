@@ -1,149 +1,95 @@
 /*
     This program is part of the Digikey Course on FreeRTOS
 
-    In this program we read from the serial a number and update 
-    the delay of the blinking LED
+    In this program we test the concepts of memory allocation using 
+    tasks
 
     As the priority value increases, the task will execute first
 
 */
 
+
 #include <Arduino.h>
-#include <stdlib.h>
 
 #if CONFIG_FREERTOS_UNICORE
   static const BaseType_t app_cpu = 0;
 #else
   static const BaseType_t app_cpu = 1;
 #endif
-
-// Settings 
-static const uint8_t buf_len = 255;
-
-// Globals
-static char *msg_ptr = NULL;
-static volatile uint8_t msg_flag = 0;
-
-//***********************************************************
-// Tasks
-
-// Task: read message from Serial Buffer
-void read_serial(void *parameters)
-{
-  char c;
-  char buff[buf_len];
-  uint8_t idx = 0;
-
-  // Clean whole buffer
-  memset(buff, 0, buf_len);
-
-  // Loop forever
-  while (1)
-  {
-    // Read chars from serial
-    if (Serial.available() > 0)
-    {
-      c = Serial.read();
-
-      // Store recieved char to buffer if not over buffer limit
-      if (idx < buf_len - 1)
-      {
-        buff[idx] = c;
-        idx++;
-      }
-
-      // Create a message buffer for print task
-      if (c == '\n')
-      {
-        // The last char in the string is '\n', so we need to replace 
-        // it with '\0' to make it null-terminated
-        buff[idx-1] = '\0';
-
-        // Try to allocate and copy over message. If buffer is still in 
-        // use, ignore the entire message
-        if (msg_flag == 0)
-        {
-          msg_ptr = (char*)pvPortMalloc(idx*sizeof(char));
-
-          // If malloc returns 0 (out of mem), throw an error and reset
-          configASSERT(msg_ptr);
-
-          // Copy message
-          memcpy(msg_ptr, buff, idx);
-
-          // Notify other task that message is ready
-          msg_flag = 1;
-        }
-
-        // Reset recieve buffer and index counter
-        memset(buff, 0, buf_len);
-        idx = 0;
-      }
-    }
-  }
-}
-
-// Task: print message when flag is set and free buffer
-void print_message(void *parameters)
+ 
+// Task: Perform some mundane task
+void testTask(void *parameter)
 {
   while(1)
   {
-    // Wait for flag to be set and print message
-    if (msg_flag == 1)
+    int a = 1;
+    int b[100];
+
+    // Do sth with the array so it's not optimized by the compiler
+    for (int i = 0; i < 100; i++)
     {
-      Serial.println(msg_ptr);
-
-      // Give amount of free heap mem
-      Serial.print("Free heap (bytes): ");
-      Serial.println(xPortGetFreeHeapSize());
-
-      //Free buffer, set pointer to null, and clear flag
-      vPortFree(msg_ptr);
-      msg_ptr = NULL;
-      msg_flag = 0;
+      b[i] = a + 1;
     }
+    Serial.println(b[0]);
+
+    // Print out remaining stack memory (words)*4
+    Serial.print("High water mark (bytes):");
+    Serial.println(uxTaskGetStackHighWaterMark(NULL)*4);
+
+    // Print out number of free heap memory bytes before malloc
+    Serial.print("Heap size before malloc (bytes):");
+    Serial.println(xPortGetFreeHeapSize());
+
+    int *ptr = (int*)pvPortMalloc(1024 * sizeof(int));
+
+    // One way to prevent heap overflow is to check the malloc output
+    if (ptr == NULL)
+    {
+      Serial.println("Not enough heap");
+    }
+    else
+    {
+      // Do sth with the memory so that the compiler don't optimize it
+      for (int i = 0; i < 1024; i++)
+      {
+        ptr[i] = 3;
+      }
+    }
+
+    vPortFree(ptr);
+
+    // Print out number of free heap memory bytes after malloc
+    Serial.print("Heap size before malloc (bytes):");
+    Serial.println(xPortGetFreeHeapSize());
+
+    // Wait for a while
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
+  
+  
   }
 }
 
-//******************************************************
-// Main (runs as its own task with priority 1 on core 1)
-
-void setup()
-{
+void setup() {
+  // Configure serial
   Serial.begin(115200);
 
-  vTaskDelay(2000 / portTICK_PERIOD_MS);
+  // Wait a moment to start
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
   Serial.println();
-  Serial.println("---FreeRTOS Heap Demo---");
-  Serial.println("Enter string");
+  Serial.println("----FreeRTOS Memory Demo----");
 
-  // Start Serial recieve task
-  xTaskCreatePinnedToCore(
-                    read_serial,
-                    "Read Serial",
-                    1024,
-                    NULL,
-                    1,
-                    NULL,
-                    app_cpu
-  );
-
-  // Start Serial print task
-  xTaskCreatePinnedToCore(
-                    print_message,
-                    "Print Message",
-                    1024,
-                    NULL,
-                    1,
-                    NULL,
-                    app_cpu
-  );
-
+  // Start the other only task
+  xTaskCreatePinnedToCore(testTask,
+                          "Test task",
+                          1500,
+                          NULL,
+                          1,
+                          NULL,
+                          app_cpu);
+  // Delete setup & loop
   vTaskDelete(NULL);
 }
 
-
-void loop()
-{
-
+void loop() {
+ 
 }

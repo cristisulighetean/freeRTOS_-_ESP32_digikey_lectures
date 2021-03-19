@@ -13,6 +13,7 @@
 //#include timers.h
 #include <Arduino.h>
 
+#define LED_BUILTIN 2
 // Use only core 1 for demo purposes
 #if CONFIG_FREERTOS_UNICORE
   static const BaseType_t app_cpu = 0;
@@ -23,8 +24,8 @@
 // Settings
 static const TickType_t dim_delay = 5000 / portTICK_PERIOD_MS;
 
-// Pins (change this if your Arduino board does not have LED_BUILTIN defined)
-static const int led_pin = 2;
+// Pins 
+static const int led_pin = LED_BUILTIN;
 
 // Globals
 static TimerHandle_t one_shot_timer = NULL;

@@ -29,7 +29,6 @@ static const int led_pin = 2;
 typedef struct message {
   char body[20];
   int count;
-
 }message;
 
 // Globals
@@ -42,15 +41,17 @@ static QueueHandle_t msg_queue;
 // Task: command line interface (CLI)
 /* This task will do the following
  *    - Listen on the serial
- *    - If there is a message on the message_queue - > print it on the seria
+ *    - If there is a message on the message_queue - > print it on the seriaL
  *    - Check for 'delay' cmd and put the delay on the delay_queue
  *    - echo all from serial to the screen
  */
 void doCLI (void *parameters){
   
   message rcv_msg;
+
   char c;
   char buff[buf_len];
+
   uint8_t idx = 0;
   uint8_t cmd_len = strlen(command);
   int led_delay;
@@ -89,8 +90,9 @@ void doCLI (void *parameters){
         // Check if the first chars are "delay"
         if (memcmp(buff, command, cmd_len) == 0){
           
-          // Convert last part to positive int (negative int crashes)
-          char* tail = buff + cmd_len; // pointer arithmetics -> it shifts the pointer to the delay val
+          // Convert last part to positive int 
+          // pointer arithmetics -> it shifts the pointer to the delay val
+          char* tail = buff + cmd_len; 
           led_delay = atoi(tail);
           led_delay = abs(led_delay);
 

@@ -50,7 +50,6 @@ void myTask(void *parameters) {
   Serial.print(msg.body);
   Serial.print(" | len: ");
   Serial.println(msg.len);
-
   xSemaphoreGive(mutex);
 
   // Wait for a while and delete self

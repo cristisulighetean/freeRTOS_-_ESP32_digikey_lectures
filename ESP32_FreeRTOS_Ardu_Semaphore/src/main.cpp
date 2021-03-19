@@ -22,7 +22,7 @@
 
 // Settings
 static const uint8_t queue_len = 10;  // Size of queue
-static const int num_prod_tasks = 5;  // Number of producer tasks
+static const int num_prod_tasks = 20;  // Number of producer tasks
 static const int num_cons_tasks = 2;  // Number of consumer tasks
 static const int num_writes = 3;      // Num times each producer writes to buf
 

@@ -15,7 +15,7 @@
 #endif
 
 // Settings
-// Set the length of the queue to 5
+// queue length
 static const uint8_t msg_quque_len = 5;
 
 // Globals
@@ -36,7 +36,7 @@ void printMessages(void *parameters)
     // Read from the queue - last param is the tick timeout
     if (xQueueReceive(msg_quque, (void *)&item, 0) == pdTRUE)
     {
-      //Serial.println(item);
+      Serial.println(item);
     }
     Serial.println(item);
 
@@ -77,6 +77,7 @@ void loop() {
   static int num = 0;
 
   // Try to add item to queue for 10 ticks, fail if quque is full
+  // We send the address of the value with &
   if (xQueueSend(msg_quque, (void *)&num, 0) != pdTRUE)
   {
     Serial.println("Queue full!");

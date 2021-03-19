@@ -23,7 +23,7 @@
 enum {BUF_SIZE = 5};                  // Size of buffer array
 static const int num_prod_tasks = 5;  // Number of producer tasks
 static const int num_cons_tasks = 2;  // Number of consumer tasks
-static const int num_writes = 3;      // Num times each producer writes to buf
+static const int num_writes = 5;      // Num times each producer writes to buf
 
 // Globals
 static int buf[BUF_SIZE];             // Shared buffer
@@ -44,6 +44,7 @@ void producer(void *parameters) {
   int num = *(int *)parameters;
 
   // Release the binary semaphore
+  // Used for copying the parameter
   xSemaphoreGive(bin_sem);
 
   // Fill shared buffer with task number
@@ -61,6 +62,8 @@ void producer(void *parameters) {
     xSemaphoreGive(mutex);
 
     // Signal to consumer tasks that a slot in the buffer has been filled
+    // increment sem_filled with one
+    // Must be decremented on the consumer side
     xSemaphoreGive(sem_filled);
   }
 
@@ -77,6 +80,7 @@ void consumer(void *parameters) {
   while (1) {
 
     // Wait for at least one slot in buffer to be filled
+    // Decrement sem_filled
     xSemaphoreTake(sem_filled, portMAX_DELAY);
 
     // Lock critical section with a mutex
@@ -124,6 +128,7 @@ void setup() {
                             1,
                             NULL,
                             app_cpu);
+    // Take binary semaphore to send argument
     xSemaphoreTake(bin_sem, portMAX_DELAY);
   }
 

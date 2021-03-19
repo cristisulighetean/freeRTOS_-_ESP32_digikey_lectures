@@ -1,107 +1,75 @@
-/**
- * FreeRTOS Mutex Challenge
- * 
- * Pass a parameter to a task using a mutex.
- * 
- * The mutex is used to lock the process until the parameter
- * is copied into the local variable to the task, after that 
- * the mutex is given back to complete the task
- * 
- */
-
-// You'll likely need this on vanilla FreeRTOS
-//#include semphr.h
+// if working with vanilla freeRtos 
+// #include semaphr.h
 
 #include <Arduino.h>
-// Use only core 1 for demo purposes
+// Use only one core
 #if CONFIG_FREERTOS_UNICORE
-  static const BaseType_t app_cpu = 0;
-#else
-  static const BaseType_t app_cpu = 1;
+static const BaseType_t app_cpu = 0;
+#else 
+static const BaseType_t app_cpu = 1;
 #endif
 
-// Pins (change this if your Arduino board does not have LED_BUILTIN defined)
-static const int led_pin = 2;
+static int shared_var = 0;
+static SemaphoreHandle_t mutex; 
 
-static SemaphoreHandle_t mutex;
+//Incrementing task
+void inc_task(void *parameters){
+  int local_var;
 
-//*****************************************************************************
-// Tasks
+  // loop forever
+  while(1)
+  {
+    // Check if mutex is available -> (this is non blocking)
+    if (xSemaphoreTake(mutex, 0) == pdTRUE)
+    {
+      local_var = shared_var;
+      local_var++;
+      vTaskDelay(random(100, 500) / portTICK_PERIOD_MS);
+      shared_var = local_var;
 
-// Blink LED based on rate passed by parameter
-void blinkLED(void *parameters) {
+      // Give mutex after critical section
+      xSemaphoreGive(mutex);
 
-  // Copy the parameter into a local variable
-  int num = *(int *)parameters;
-
-  // Release mutex so that the creating function can finish
-  // After the parameter is copied (only then)
-  xSemaphoreGive(mutex);
-
-  // Print the parameter
-  Serial.print("Received: ");
-  Serial.println(num);
-
-  // Configure the LED pin
-  pinMode(led_pin, OUTPUT);
-
-  // Blink forever and ever
-  while (1) {
-    digitalWrite(led_pin, HIGH);
-    vTaskDelay(num / portTICK_PERIOD_MS);
-    digitalWrite(led_pin, LOW);
-    vTaskDelay(num / portTICK_PERIOD_MS);
+      // Print out the new shared var
+      Serial.println(shared_var);
+    }
+    else
+    {
+      // Do something else
+    }
   }
+
 }
 
-//*****************************************************************************
-// Main (runs as its own task with priority 1 on core 1)
-
 void setup() {
-
-  long int delay_arg;
-
-  // Configure Serial
   Serial.begin(115200);
 
-  // Wait a moment to start (so we don't miss Serial output)
-  vTaskDelay(1000 / portTICK_PERIOD_MS);
+  // wait a moment to start
+  vTaskDelay(2000 / portTICK_PERIOD_MS);
+  Serial.println("-----FreeRTOS Mutex Demo-----");
   Serial.println();
-  Serial.println("---FreeRTOS Mutex Challenge---");
-  Serial.println("Enter a number for delay (milliseconds)");
-
-  // Wait for input from Serial
-  while (Serial.available() <= 0);
-
-  // Read integer value
-  delay_arg = Serial.parseInt();
-  Serial.print("Sending: ");
-  Serial.println(delay_arg);
 
   // Create mutex before starting tasks
   mutex = xSemaphoreCreateMutex();
 
-  // Take the mutex after creating it
-  xSemaphoreTake(mutex, portMAX_DELAY);
-
-  // Start task 1
-  xTaskCreatePinnedToCore(blinkLED,
-                          "Blink LED",
+  xTaskCreatePinnedToCore(inc_task,
+                          "inc_task_1",
                           1024,
-                          (void *)&delay_arg,
+                          NULL,
                           1,
                           NULL,
                           app_cpu);
 
-  // Do nothing until mutex has been returned (max delay)
-  xSemaphoreTake(mutex, portMAX_DELAY);
 
-  // Show that we accomplished our task of passing the stack-based argument
-  Serial.println("Done!");
+  xTaskCreatePinnedToCore(inc_task,
+                          "inc_task_2",
+                          1024,
+                          NULL,
+                          1,
+                          NULL,
+                          app_cpu);
 }
 
 void loop() {
-  
-  // Do nothing but allow yielding to lower-priority tasks
-  vTaskDelay(1000 / portTICK_PERIOD_MS);
+  // put your main code here, to run repeatedly:
 }
