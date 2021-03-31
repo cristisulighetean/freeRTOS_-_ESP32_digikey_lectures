@@ -3,14 +3,14 @@
  * 
  * Sample ADC in an ISR, process in a task.
  * 
- * Date: February 23, 2021
+ * Date: February 3, 2021
  * Author: Shawn Hymel
  * License: 0BSD
  */
 #include <Arduino.h>
-
 // You'll likely need this on vanilla FreeRTOS
 //#include semphr.h
+
 
 // Use only core 1 for demo purposes
 #if CONFIG_FREERTOS_UNICORE
@@ -20,21 +20,20 @@
 #endif
 
 // Settings
-static const char command[] = "rms";              // Command
-static const uint16_t timer_divider = 2;          // Divide 80 MHz by this
-static const uint64_t timer_max_count = 2500;     // 16kHz sample rate
-static const uint32_t cli_delay = 10;             // ms delay
-static const float adc_voltage = 3.3;             // Max ADC voltage
-static const uint16_t adc_max = 4095;             // Max ADC value (12-bit)
-static const uint8_t pwm_ch = 0;                  // PWM channel
-enum { BUF_LEN = 1600 };    // Number of elements in sample buffer
+static const char command[] = "avg";              // Command
+// used to compare it to input serial buffer
+static const uint16_t timer_divider = 8;          // Divide 80 MHz by this (timer runs every 100ms)
+static const uint64_t timer_max_count = 1000000;  // Timer counts to this value
+
+// 20MS delay to not Hog the CPU
+static const uint32_t cli_delay = 20;             // ms delay
+enum { BUF_LEN = 10 };      // Number of elements in sample buffer
 enum { MSG_LEN = 100 };     // Max characters in message body
 enum { MSG_QUEUE_LEN = 5 }; // Number of slots in message queue
 enum { CMD_BUF_LEN = 255};  // Number of characters in command buffer
 
 // Pins
 static const int adc_pin = A0;
-static const int led_pin = 2;
 
 // Message struct to wrap strings for queue
 typedef struct Message {
@@ -53,7 +52,7 @@ static volatile uint16_t buf_1[BUF_LEN];      // The other buffer in the pair
 static volatile uint16_t* write_to = buf_0;   // Double buffer write pointer
 static volatile uint16_t* read_from = buf_1;  // Double buffer read pointer
 static volatile uint8_t buf_overrun = 0;      // Double buffer overrun flag
-static float adc_rms;
+static float adc_avg;
                                               
 //*****************************************************************************
 // Functions that can be called from anywhere (in this file)
@@ -122,7 +121,7 @@ void doCLI(void *parameters) {
   char c;
   char cmd_buf[CMD_BUF_LEN];
   uint8_t idx = 0;
-  //uint8_t cmd_len = strlen(command);
+  uint8_t cmd_len = strlen(command);
 
   // Clear whole buffer
   memset(cmd_buf, 0, CMD_BUF_LEN);
@@ -154,8 +153,8 @@ void doCLI(void *parameters) {
         // Print average value if command given is "avg"
         cmd_buf[idx - 1] = '\0';
         if (strcmp(cmd_buf, command) == 0) {
-          Serial.print("RMS Voltage: ");
-          Serial.println(adc_rms);
+          Serial.print("Average: ");
+          Serial.println(adc_avg);
         }
 
         // Reset receive buffer and index counter
@@ -174,13 +173,10 @@ void doCLI(void *parameters) {
 }
 
 // Wait for semaphore and calculate average of ADC values
-void calcRMS(void *parameters) {
+void calcAverage(void *parameters) {
 
   Message msg;
-  float val;
   float avg;
-  float rms;
-  float brightness;
 
   // Loop forever, wait for semaphore, and print value
   while (1) {
@@ -196,26 +192,11 @@ void calcRMS(void *parameters) {
     }
     avg /= BUF_LEN;
 
-    // Convert average to voltage
-    avg = (avg * adc_voltage) / (float)adc_max;
-
-    // Calculate volts-RMS value (filter out DC component)
-    rms = 0.0;
-    for (int i = 0; i < BUF_LEN; i++) {
-      val = ((float)read_from[i] * adc_voltage) / (float)adc_max;
-      rms += powf((val - avg), 2);
-    }
-    rms = sqrtf(rms / BUF_LEN);
-
-    // Udate LED brightness
-    brightness = (rms * UINT16_MAX) / adc_voltage;
-    ledcWrite(pwm_ch, brightness);
-
     // Updating the shared float may or may not take multiple isntructions, so
     // we protect it with a mutex or critical section. The ESP-IDF critical
     // section is the easiest for this application.
     portENTER_CRITICAL(&spinlock);
-    adc_rms = rms;
+    adc_avg = avg;
     portEXIT_CRITICAL(&spinlock);
 
     // If we took too long to process, buffer writing will have overrun. So,
@@ -238,11 +219,6 @@ void calcRMS(void *parameters) {
 // Main (runs as its own task with priority 1 on core 1)
 
 void setup() {
-
-  // Configure PWM pin
-  pinMode(led_pin, OUTPUT);
-  ledcAttachPin(led_pin, pwm_ch); // Assign pin to PWM channel 0
-  ledcSetup(pwm_ch, 4000, 16);    // channel 0, 12kHz, 16-bit resolution
 
   // Configure Serial
   Serial.begin(115200);
@@ -268,19 +244,19 @@ void setup() {
   msg_queue = xQueueCreate(MSG_QUEUE_LEN, sizeof(Message));
 
   // Start task to handle command line interface events. Let's set it at a
-  // higher priority but only run it once every 20 ms.
+  // higher priority but only run it once every 20 ms. => CLI Delay
   xTaskCreatePinnedToCore(doCLI,
                           "Do CLI",
-                          2048,
+                          1024,
                           NULL,
                           2,
                           NULL,
                           app_cpu);
 
   // Start task to calculate average. Save handle for use with notifications.
-  xTaskCreatePinnedToCore(calcRMS,
-                          "Calculate RMS",
-                          2048,
+  xTaskCreatePinnedToCore(calcAverage,
+                          "Calculate average",
+                          1024,
                           NULL,
                           1,
                           &processing_task,

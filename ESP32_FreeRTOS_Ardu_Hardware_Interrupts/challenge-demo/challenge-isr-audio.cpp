@@ -23,9 +23,12 @@
 static const char command[] = "rms";              // Command
 static const uint16_t timer_divider = 2;          // Divide 80 MHz by this
 static const uint64_t timer_max_count = 2500;     // 16kHz sample rate
+
 static const uint32_t cli_delay = 10;             // ms delay
+
 static const float adc_voltage = 3.3;             // Max ADC voltage
 static const uint16_t adc_max = 4095;             // Max ADC value (12-bit)
+
 static const uint8_t pwm_ch = 0;                  // PWM channel
 enum { BUF_LEN = 1600 };    // Number of elements in sample buffer
 enum { MSG_LEN = 100 };     // Max characters in message body
@@ -51,6 +54,7 @@ static QueueHandle_t msg_queue;
 static volatile uint16_t buf_0[BUF_LEN];      // One buffer in the pair
 static volatile uint16_t buf_1[BUF_LEN];      // The other buffer in the pair
 static volatile uint16_t* write_to = buf_0;   // Double buffer write pointer
+// Used for the 2 buffers
 static volatile uint16_t* read_from = buf_1;  // Double buffer read pointer
 static volatile uint8_t buf_overrun = 0;      // Double buffer overrun flag
 static float adc_rms;
@@ -87,6 +91,7 @@ void IRAM_ATTR onTimer() {
 
     // If reading is not done, set overrun flag. We don't need to set this
     // as a critical section, as nothing can interrupt and change either value.
+    // If overrun -> take semaphore and set flag
     if (xSemaphoreTakeFromISR(sem_done_reading, &task_woken) == pdFALSE) {
       buf_overrun = 1;
     }
@@ -229,6 +234,7 @@ void calcRMS(void *parameters) {
     // be done together without being interrupted.
     portENTER_CRITICAL(&spinlock);
     buf_overrun = 0;
+    // Give semaphore in case of overrun
     xSemaphoreGive(sem_done_reading);
     portEXIT_CRITICAL(&spinlock);
   }
