@@ -1,9 +1,8 @@
 #include <Arduino.h>
 /**
- * ESP32 Critical Section Demo
+ * ESP32 Priority Inheritance Demo
  * 
- * Demonstrate how priority inversion can be avoided through the use of
- * critical sections.
+ * Demonstrate priority inheritance.
  * 
  * Date: February 12, 2021
  * Author: Shawn Hymel
@@ -21,11 +20,11 @@
 #endif
 
 // Settings
-TickType_t cs_wait = 250;   // Time spent in critical section (ms)
+TickType_t cs_wait = 250;  // Time spent in critical section (ms)
 TickType_t med_wait = 5000; // Time medium task spends working (ms)
 
 // Globals
-static portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
+static SemaphoreHandle_t lock;
 
 //*****************************************************************************
 // Tasks
@@ -41,7 +40,7 @@ void doTaskL(void *parameters) {
     // Take lock
     Serial.println("Task L trying to take lock...");
     timestamp = xTaskGetTickCount() * portTICK_PERIOD_MS;
-    portENTER_CRITICAL(&spinlock);  // taskENTER_CRITICAL() in vanilla FreeRTOS
+    xSemaphoreTake(lock, portMAX_DELAY);
 
     // Say how long we spend waiting for a lock
     Serial.print("Task L got lock. Spent ");
@@ -54,7 +53,7 @@ void doTaskL(void *parameters) {
 
     // Release lock
     Serial.println("Task L releasing lock.");
-    portEXIT_CRITICAL(&spinlock);  // taskEXIT_CRITICAL() in vanilla FreeRTOS
+    xSemaphoreGive(lock);
 
     // Go to sleep
     vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -91,7 +90,7 @@ void doTaskH(void *parameters) {
     // Take lock
     Serial.println("Task H trying to take lock...");
     timestamp = xTaskGetTickCount() * portTICK_PERIOD_MS;
-    portENTER_CRITICAL(&spinlock);  // taskENTER_CRITICAL() in vanilla FreeRTOS
+    xSemaphoreTake(lock, portMAX_DELAY);
 
     // Say how long we spend waiting for a lock
     Serial.print("Task H got lock. Spent ");
@@ -104,7 +103,7 @@ void doTaskH(void *parameters) {
 
     // Release lock
     Serial.println("Task H releasing lock.");
-    portEXIT_CRITICAL(&spinlock);  // taskEXIT_CRITICAL() in vanilla FreeRTOS
+    xSemaphoreGive(lock);
     
     // Go to sleep
     vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -122,7 +121,10 @@ void setup() {
   // Wait a moment to start (so we don't miss Serial output)
   vTaskDelay(1000 / portTICK_PERIOD_MS);
   Serial.println();
-  Serial.println("---FreeRTOS Critical Section Demo---");
+  Serial.println("---FreeRTOS Priority Inheritance Demo---");
+
+  // Create semaphores and mutexes before starting tasks
+  lock = xSemaphoreCreateMutex();
   
   // The order of starting the tasks matters to force priority inversion
 
@@ -134,7 +136,7 @@ void setup() {
                           1,
                           NULL,
                           app_cpu);
-  
+
   // Introduce a delay to force priority inversion
   vTaskDelay(1 / portTICK_PERIOD_MS);
 
