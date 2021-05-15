@@ -40,7 +40,7 @@ void doTaskL(void *parameters) {
     // Take lock
     Serial.println("Task L trying to take lock...");
     timestamp = xTaskGetTickCount() * portTICK_PERIOD_MS;
-    xSemaphoreTake(lock, portMAX_DELAY);
+    
 
     // Say how long we spend waiting for a lock
     Serial.print("Task L got lock. Spent ");

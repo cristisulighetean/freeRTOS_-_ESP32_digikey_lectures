@@ -42,7 +42,7 @@ static QueueHandle_t msg_queue;
 // Task: command line interface (CLI)
 /* This task will do the following
  *    - Listen on the serial
- *    - If there is a message on the message_queue - > print it on the seria
+ *    - If there is a message on the message_queue - > print it on the serial
  *    - Check for 'delay' cmd and put the delay on the delay_queue
  *    - echo all from serial to the screen
  */
